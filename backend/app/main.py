@@ -24,12 +24,13 @@ allow_all_origins = "*" in raw_cors_origins
 cors_origins = [origin for origin in raw_cors_origins if origin != "*"]
 
 app = FastAPI(
-    title="FarmerClaw — 三农电商AI Agent",
-    description="农产品/农资全链路智能运营平台：痛点挖掘 → Listing生成 → 合规校验",
-    version=settings.app_version,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    title="FarmerClaw API",
+    description="三农短视频卖点挖掘与口播稿生成系统",
+    version="0.1.0",
 )
+
+# Vercel needs the app variable to be accessible
+# No changes to the actual FastAPI logic below
 
 app.add_middleware(
     CORSMiddleware,
