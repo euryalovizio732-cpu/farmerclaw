@@ -242,6 +242,32 @@ async def generate_content_pack(body: ContentPackBody):
         raise HTTPException(status_code=500, detail=f"生成失败：{str(exc)}")
 
 
+@router.get("/session")
+async def get_content_pack_session():
+    """兼容旧版前端：当前版本已改为浏览器本地缓存，这里返回空会话避免 500。"""
+    return {
+        "code": 0,
+        "data": {
+            "form": None,
+            "result": None,
+            "saved_at": "",
+        },
+    }
+
+
+@router.post("/session/save")
+async def save_content_pack_session(body: dict):
+    """兼容旧版前端：保留保存接口但不强依赖数据库。"""
+    return {
+        "code": 0,
+        "message": "会话已保存",
+        "data": {
+            "saved": True,
+            "saved_at": body.get("saved_at", ""),
+        },
+    }
+
+
 @router.get("/season")
 async def get_season_info():
     """获取当前节气信息和时令产品推荐"""

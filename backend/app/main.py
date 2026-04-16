@@ -26,20 +26,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from loguru import logger
 
 from app.config import get_settings
-from app.database import engine, Base
 
 settings = get_settings()
-
-# Create tables on startup
-try:
-    # Synchronous metadata creation on engine
-    # In async environments, this needs caution but works for simple table init
-    from sqlalchemy import create_engine
-    sync_engine = create_engine(settings.database_url.replace("postgresql+asyncpg://", "postgresql://"))
-    Base.metadata.create_all(bind=sync_engine)
-    logger.info("Database tables created/verified successfully")
-except Exception as e:
-    logger.error(f"Failed to create database tables: {e}")
 
 raw_cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 allow_all_origins = "*" in raw_cors_origins
@@ -50,9 +38,6 @@ app = FastAPI(
     description="三农短视频卖点挖掘与口播稿生成系统",
     version="0.1.0",
 )
-
-# Vercel needs the app variable to be accessible
-# No changes to the actual FastAPI logic below
 
 app.add_middleware(
     CORSMiddleware,
@@ -150,21 +135,32 @@ async def ready():
 
 # ── 路由注册 ──
 
-# API Routers for Vercel mapping
-from app.api.topic import router as topic_router
-from app.api.listing import router as listing_router
-from app.api.pain_point import router as pain_point_router
-from app.api.reply import router as reply_router
-from app.api.content_pack import router as content_pack_router
+from app.routers.pain_point_router import router as pain_point_router
+from app.routers.listing_router import router as listing_router
+from app.routers.dashboard_router import router as dashboard_router
+from app.routers.auth_router import router as auth_router
+from app.routers.pipeline_router import router as pipeline_router
+from app.routers.content_pack_router import router as content_pack_router
+from app.routers.live_review_router import router as live_review_router
+from app.routers.reply_router import router as reply_router
+from app.routers.ad_router import router as ad_router
+from app.routers.feedback_router import router as feedback_router
+from app.routers.sample_router import router as sample_router
+from app.routers.topic_router import router as topic_router
 
-# Core API routes
-app.include_router(topic_router, prefix="/api/topic", tags=["topic"])
-app.include_router(listing_router, prefix="/api/listing", tags=["listing"])
-app.include_router(pain_point_router, prefix="/api/pain-point", tags=["pain-point"])
-app.include_router(reply_router, prefix="/api/reply", tags=["reply"])
-app.include_router(content_pack_router, prefix="/api/content-pack", tags=["content-pack"])
+app.include_router(auth_router)
+app.include_router(pipeline_router)
+app.include_router(content_pack_router)
+app.include_router(live_review_router)
+app.include_router(reply_router)
+app.include_router(ad_router)
+app.include_router(pain_point_router)
+app.include_router(listing_router)
+app.include_router(dashboard_router)
+app.include_router(feedback_router)
+app.include_router(sample_router)
+app.include_router(topic_router)
 
-# Health Check with /api prefix for Vercel
 @app.get("/api/health/ready", tags=["ops"])
 async def api_health_ready():
     return {"status": "ready"}
