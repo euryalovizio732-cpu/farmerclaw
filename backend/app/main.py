@@ -7,6 +7,15 @@
 import os
 import sys
 
+# Path patch for Vercel: Add the backend directory to sys.path
+# This allows 'from app.xxx import yyy' to work correctly
+current_dir = os.path.dirname(os.path.abspath(__file__))
+backend_dir = os.path.dirname(current_dir)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, Request
@@ -17,14 +26,17 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from loguru import logger
 
 from app.config import get_settings
-from app.db.session import engine
-from app.db.base import Base
+from app.database import engine, Base
 
 settings = get_settings()
 
 # Create tables on startup
 try:
-    Base.metadata.create_all(bind=engine)
+    # Synchronous metadata creation on engine
+    # In async environments, this needs caution but works for simple table init
+    from sqlalchemy import create_engine
+    sync_engine = create_engine(settings.database_url.replace("postgresql+asyncpg://", "postgresql://"))
+    Base.metadata.create_all(bind=sync_engine)
     logger.info("Database tables created/verified successfully")
 except Exception as e:
     logger.error(f"Failed to create database tables: {e}")
