@@ -65,7 +65,11 @@ def _init_engine():
     try:
         from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-        kwargs: dict = {"echo": settings.app_debug, "pool_pre_ping": True}
+        connect_args = {}
+        if "supabase.co" in settings.database_url:
+            connect_args = {"sslmode": "require"}
+
+        kwargs: dict = {"echo": settings.app_debug, "pool_pre_ping": True, "pool_size": 10, "max_overflow": 20, "connect_args": connect_args}
         if "sqlite" in DATABASE_URL:
             kwargs["connect_args"] = {"check_same_thread": False}
         else:
