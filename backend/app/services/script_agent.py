@@ -66,32 +66,74 @@ class ScriptAgent:
     ) -> Dict[str, Any]:
         """三段式生成流程"""
         
-        # 1. 准备 Context
-        canonical_category = kb.resolve_best_category(product_name, category)
-        samples = get_few_shot_samples(canonical_category or category, "script", count=2)
-        few_shot = format_few_shot_block(samples, "script")
-        
-        # 2. Stage 1: Draft
-        draft_script = self._generate_draft(product_name, category, topic_info, context, few_shot)
-        logger.debug(f"Script Draft Generated: {draft_script[:50]}...")
+        try:
+            canonical_category = kb.resolve_best_category(product_name, category)
+            samples = get_few_shot_samples(canonical_category or category, "script", count=2)
+            few_shot = format_few_shot_block(samples, "script")
+        except Exception as exc:
+            logger.warning("Prepare script samples failed: {}", exc)
+            few_shot = ""
 
-        # 3. Stage 2: Review
+        try:
+            draft_script = self._generate_draft(product_name, category, topic_info, context, few_shot)
+            logger.debug(f"Script Draft Generated: {draft_script[:50]}...")
+        except Exception as exc:
+            logger.error("Script draft failed: {}", exc)
+            draft_script = self.build_fallback_script(product_name, category, topic_info, context)
+            review_result = {
+                "score": 60,
+                "issues": ["口播稿初稿生成失败，已使用兜底口播稿"],
+                "suggestions": "",
+                "fatal_error": False,
+            }
+            return {
+                "full_script": draft_script,
+                "review": review_result,
+                "is_refined": False,
+                "draft": draft_script
+            }
+
         review_result = self._review_script(draft_script, product_name, category, topic_info)
         score = review_result.get("score", 0)
         logger.info(f"Script Review Score: {score}")
 
-        # 4. Stage 3: Rewrite (如果评分低于 95，或者有具体建议，就进行润色)
         final_script = draft_script
         if score < 95 or review_result.get("suggestions"):
             logger.info(f"Refining script (score: {score})...")
-            final_script = self._rewrite_script(draft_script, review_result, product_name, category, topic_info, few_shot)
+            try:
+                final_script = self._rewrite_script(draft_script, review_result, product_name, category, topic_info, few_shot)
+            except Exception as exc:
+                logger.warning("Script rewrite failed, using draft: {}", exc)
         
         return {
             "full_script": final_script,
             "review": review_result,
-            "is_refined": True,
+            "is_refined": final_script != draft_script,
             "draft": draft_script
         }
+
+    def build_fallback_script(
+        self,
+        product_name: str,
+        category: str,
+        topic_info: Dict[str, Any],
+        context: Dict[str, Any],
+    ) -> str:
+        return self._fallback_script(product_name, category, topic_info, context)
+
+    def _fallback_script(self, product_name: str, category: str, topic_info: Dict[str, Any], context: Dict[str, Any]) -> str:
+        origin = context.get("origin") or "产地"
+        specification = context.get("specification") or "当季规格"
+        price = context.get("price") or "产地价"
+        core_features = context.get("core_features") or "新鲜直发"
+        title = topic_info.get("title") or product_name
+        shooting_angle = topic_info.get("shooting_angle") or "产地实拍"
+        return (
+            f"家人们，今天给你们带来的是{origin}{product_name}。"
+            f"这条内容就围绕“{title}”这个点来讲，不说空话，先把真实情况给你看。"
+            f"我们这批是{specification}，主打就是{core_features}，按{shooting_angle}这个角度拍出来你一看就知道是不是现货。"
+            f"价格这边是{price}，觉得合适你就先拍一单尝尝，不满意按平台规则处理。"
+        )
 
     def _generate_draft(self, product, category, topic, context, few_shot) -> str:
         user_prompt = f"""请为【{product}】生成一条口播稿。

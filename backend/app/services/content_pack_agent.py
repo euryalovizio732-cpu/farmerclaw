@@ -9,7 +9,6 @@
   - 今日节气营销提示
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -313,14 +312,42 @@ class ContentPackAgent:
                 "formula_type": topic_type or ["知识反问", "季节稀缺", "产地溯源"][min(i, 2)],
             }
 
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            futures = {pool.submit(_generate_one, (i, t)): i for i, t in enumerate(script_topics)}
-            raw_results = []
-            for fut in as_completed(futures):
-                try:
-                    raw_results.append(fut.result())
-                except Exception as exc:
-                    logger.error("并行口播稿生成失败: {}", exc)
+        raw_results = []
+        for i, topic in enumerate(script_topics):
+            try:
+                raw_results.append(_generate_one((i, topic)))
+            except Exception as exc:
+                logger.error("口播稿生成失败，使用兜底稿: {}", exc)
+                fallback_script = script_agent.build_fallback_script(
+                    product_name=request.product_name if request else topic.get("title", f"选题{i + 1}"),
+                    category=request.category if request else topic.get("type", ""),
+                    topic_info=topic,
+                    context={
+                        "origin": request.origin if request else "",
+                        "specification": request.specification if request else "",
+                        "price": request.price if request else "",
+                        "core_features": request.core_features if request else "",
+                    },
+                )
+                raw_results.append({
+                    "_idx": i,
+                    "_issues": [],
+                    "_hashtags": [],
+                    "topic_id": topic.get("topic_id", i + 1),
+                    "topic_title": topic.get("title", f"选题{i + 1}"),
+                    "topic_type": topic.get("type", ""),
+                    "full_script": fallback_script,
+                    "review_score": 60,
+                    "review_suggestions": "已使用兜底口播稿",
+                    "hook_0_3s": fallback_script,
+                    "product_3_15s": "",
+                    "trust_15_25s": "",
+                    "cta_25_30s": "",
+                    "formula_type": topic.get("type", "") or ["知识反问", "季节稀缺", "产地溯源"][min(i, 2)],
+                })
+
+        if not raw_results:
+            raise RuntimeError("口播稿生成失败")
 
         raw_results.sort(key=lambda x: x["_idx"])
         scripts = []
