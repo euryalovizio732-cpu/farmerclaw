@@ -17,8 +17,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from loguru import logger
 
 from app.config import get_settings
+from app.db.session import engine
+from app.db.base import Base
 
 settings = get_settings()
+
+# Create tables on startup
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created/verified successfully")
+except Exception as e:
+    logger.error(f"Failed to create database tables: {e}")
+
 raw_cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 allow_all_origins = "*" in raw_cors_origins
 cors_origins = [origin for origin in raw_cors_origins if origin != "*"]
