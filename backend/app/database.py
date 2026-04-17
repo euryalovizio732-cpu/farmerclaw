@@ -68,6 +68,10 @@ def _init_engine():
         connect_args = {}
         if "supabase.co" in settings.database_url or "sslmode=require" in settings.database_url:
             connect_args = {"ssl": True}
+        # Supabase Transaction pooler (pgbouncer) 不支持 prepared statements，必须关 asyncpg 的 statement cache
+        if "pooler.supabase.com" in settings.database_url or ":6543" in settings.database_url:
+            connect_args["statement_cache_size"] = 0
+            connect_args["prepared_statement_cache_size"] = 0
 
         kwargs: dict = {"echo": settings.app_debug, "pool_pre_ping": True, "pool_size": 10, "max_overflow": 20, "connect_args": connect_args}
         if "sqlite" in DATABASE_URL:
