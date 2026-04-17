@@ -66,8 +66,8 @@ def _init_engine():
         from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
         connect_args = {}
-        if "supabase.co" in settings.database_url:
-            connect_args = {"sslmode": "require"}
+        if "supabase.co" in settings.database_url or "sslmode=require" in settings.database_url:
+            connect_args = {"ssl": True}
 
         kwargs: dict = {"echo": settings.app_debug, "pool_pre_ping": True, "pool_size": 10, "max_overflow": 20, "connect_args": connect_args}
         if "sqlite" in DATABASE_URL:
